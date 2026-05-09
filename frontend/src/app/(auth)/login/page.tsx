@@ -99,9 +99,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="text-xs text-muted-foreground mt-6 text-center">
-            Default: <span className="font-mono text-foreground">admin / admin123</span>
-          </p>
         </div>
       </div>
     </div>

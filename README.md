@@ -81,12 +81,14 @@ Password: admin123
 # Copy and fill backend env
 cp backend/.env.example backend/.env
 
-docker-compose up --build
+docker compose up --build
 ```
 
 - Frontend: http://localhost:3000
 - Backend: http://localhost:4000
-- MongoDB: localhost:27017
+- MongoDB: dùng **MongoDB Atlas** — đặt `MONGODB_URI` trong `backend/.env`. Mongo trong Docker chỉ khi chạy `docker compose --profile local-mongo up -d`.
+
+**Triển khai AWS EC2:** xem [docs/ai/deployment/ec2-aws.md](docs/ai/deployment/ec2-aws.md).
 
 ## Adding a New Exchange
 
