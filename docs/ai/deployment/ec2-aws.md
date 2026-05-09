@@ -149,7 +149,8 @@ docker compose up -d --build
 | Backend không kết nối được Mongo | Kiểm tra Atlas **Network Access**, URI, user/password, DB name trong URI |
 | Browser báo CORS / API lỗi | Đảm bảo `FRONTEND_URL` **trùng** scheme + host + port mà user mở trang |
 | Port 3000 không vào được | Security Group inbound + kiểm tra `docker compose ps` |
-| Hết RAM khi build frontend | Dùng instance lớn hơn hoặc build image trên CI rồi push lên registry và pull trên EC2 |
+| Hết RAM khi build frontend | Dùng instance lớn hơn (`t3.medium` tạm thời) hoặc tăng swap; hoặc build image trên CI rồi `docker pull` trên EC2 |
+| `npm ci` / build frontend fail | Commit `frontend/package-lock.json` và `git pull` trên EC2. Dockerfile đã đổi sang `node:20-bookworm-slim` và fallback `npm install` nếu không có lockfile. Log chi tiết: `docker compose build --progress=plain frontend` |
 
 ---
 
