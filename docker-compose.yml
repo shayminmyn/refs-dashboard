@@ -1,0 +1,50 @@
+version: '3.9'
+
+# MongoDB: dùng Atlas (MongoDB Cloud). Đặt MONGODB_URI trong backend/.env
+# Ví dụ: mongodb+srv://USER:PASS@cluster0.xxxxx.mongodb.net/refs_dashboard?retryWrites=true&w=majority
+#
+# Mongo local (tuỳ chọn): docker compose --profile local-mongo up -d
+
+services:
+  mongo:
+    profiles:
+      - local-mongo
+    image: mongo:7
+    container_name: refs_mongo
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: refs_dashboard
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: refs_backend
+    restart: unless-stopped
+    ports:
+      - '4000:4000'
+    env_file:
+      - ./backend/.env
+    environment:
+      FRONTEND_URL: http://localhost:3000
+    # Không set MONGODB_URI ở đây — lấy từ backend/.env (Atlas hoặc mongo local)
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        BACKEND_URL: http://backend:4000
+    container_name: refs_frontend
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    depends_on:
+      - backend
+
+volumes:
+  mongo_data:

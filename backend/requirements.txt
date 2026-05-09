@@ -1,0 +1,16 @@
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+# Mongo stack — ghim kết hợp đã kiểm chứng:
+# - Motor <3.6 hoặc PyMongo 5.x không khớp sẽ lỗi ImportError _QUERY_OPTIONS / cursor_shared
+motor==3.7.1
+pymongo==4.15.3
+
+beanie==1.26.0
+pyjwt==2.8.0
+bcrypt==4.2.1
+python-dotenv==1.0.1
+httpx==0.27.0
+apscheduler==3.10.4
+python-multipart==0.0.9
+pydantic==2.7.1
+pydantic-settings==2.3.1
