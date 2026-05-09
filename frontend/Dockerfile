@@ -34,6 +34,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+# public/ có thể rỗng hoặc không tồn tại — tạo trước để tránh lỗi COPY
+RUN mkdir -p ./public
 COPY --from=builder /app/public ./public
 EXPOSE 3000
 CMD ["node", "server.js"]
