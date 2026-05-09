@@ -28,6 +28,9 @@ FROM node:20-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+# Next.js standalone mặc định bind 0.0.0.0 nhưng set rõ cho chắc
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
 
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
