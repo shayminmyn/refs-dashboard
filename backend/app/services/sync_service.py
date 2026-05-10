@@ -35,6 +35,7 @@ async def _sync_commissions(exchange_id: str, adapter, days_back: int) -> int:
     dc_collection = DailyCommission.get_motor_collection()
     ops = []
 
+    now = datetime.utcnow()
     for c in raw_commissions:
         if not isinstance(c, (BingXDailyCommission, GenericDailyCommission)):
             continue
@@ -56,8 +57,14 @@ async def _sync_commissions(exchange_id: str, adapter, days_back: int) -> int:
                     "std_commission": c.std_commission,
                     "copy_volume": c.copy_volume,
                     "copy_commission": c.copy_commission,
-                    "synced_at": datetime.utcnow(),
-                }
+                    "synced_at": now,
+                },
+                # Đặt exchange_id/user_id/commission_date khi insert lần đầu
+                "$setOnInsert": {
+                    "exchange_id": exchange_id,
+                    "user_id": str(c.uid),
+                    "commission_date": datetime.combine(c.commission_date, datetime.min.time()),
+                },
             },
             upsert=True,
         ))
@@ -66,6 +73,8 @@ async def _sync_commissions(exchange_id: str, adapter, days_back: int) -> int:
         return 0
 
     result = await dc_collection.bulk_write(ops)
+    # upserted_count: bản ghi mới; modified_count: bản ghi đã đổi giá trị thực
+    # (synced_at dùng cùng giá trị `now` trong batch nên không inflate modified_count)
     return result.upserted_count + result.modified_count
 
 

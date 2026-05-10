@@ -187,19 +187,32 @@ class BingXAdapter(BaseExchangeAdapter):
                     datetime.utcfromtimestamp(ts_ms / 1000).date()
                     if ts_ms else date.today()
                 )
+                # BingX docs: field chính là "commission"; "commissionVolume" là tên
+                # code nội bộ cũ có thể có — thử cả hai để tương thích.
+                def _f(row: dict, *keys: str) -> float:
+                    for k in keys:
+                        v = row.get(k)
+                        if v is not None and v != "":
+                            try:
+                                return float(v)
+                            except (ValueError, TypeError):
+                                pass
+                    return 0.0
+
                 entries.append(BingXDailyCommission(
                     uid=int(row.get("uid", 0)),
                     commission_date=comm_date,
-                    trading_volume=float(row.get("tradingVolume") or 0),
-                    commission_volume=float(row.get("commissionVolume") or 0),
-                    spot_volume=float(row.get("spotTradingVolume") or 0),
-                    spot_commission=float(row.get("spotCommissionVolume") or 0),
-                    swap_volume=float(row.get("swapTradingVolume") or 0),
-                    swap_commission=float(row.get("swapCommissionVolume") or 0),
-                    std_volume=float(row.get("stdTradingVolume") or 0),
-                    std_commission=float(row.get("stdCommissionVolume") or 0),
-                    copy_volume=float(row.get("extCopyTradingVolume") or 0),
-                    copy_commission=float(row.get("extCopyCommissionVolume") or 0),
+                    trading_volume=_f(row, "tradingVolume"),
+                    # Docs trả "commission"; fallback "commissionVolume" nếu API thay đổi
+                    commission_volume=_f(row, "commission", "commissionVolume"),
+                    spot_volume=_f(row, "spotTradingVolume"),
+                    spot_commission=_f(row, "spotCommissionVolume", "spotCommission"),
+                    swap_volume=_f(row, "swapTradingVolume", "perpetualTradingVolume"),
+                    swap_commission=_f(row, "swapCommissionVolume", "swapCommission", "perpetualCommission"),
+                    std_volume=_f(row, "stdTradingVolume", "standardTradingVolume"),
+                    std_commission=_f(row, "stdCommissionVolume", "stdCommission", "standardCommission"),
+                    copy_volume=_f(row, "extCopyTradingVolume", "copyTradingVolume"),
+                    copy_commission=_f(row, "extCopyCommissionVolume", "copyCommission"),
                 ))
 
             total = int(data.get("total") or data.get("totalCount") or 0)
