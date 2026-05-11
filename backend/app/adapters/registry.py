@@ -10,13 +10,14 @@ Không cần thay đổi bất kỳ file nào khác.
 from typing import Dict, List, Optional
 
 from app.adapters.base import BaseExchangeAdapter
+from app.adapters.bitget import BitgetAdapter
 from app.adapters.bingx import BingXAdapter
 from app.adapters.exness import ExnessAdapter
 
 _adapters: List[BaseExchangeAdapter] = [
     BingXAdapter(),
     ExnessAdapter(),
-    # BitgetAdapter — tạm gỡ khỏi registry (file adapters/bitget.py vẫn giữ để bật lại sau)
+    BitgetAdapter(),
 ]
 
 _registry: Dict[str, BaseExchangeAdapter] = {a.exchange_id: a for a in _adapters}

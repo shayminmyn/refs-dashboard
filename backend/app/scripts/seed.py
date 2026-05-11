@@ -25,6 +25,15 @@ DEFAULT_EXCHANGES = [
         "color": "#FF6B35",
         "config": {},
     },
+    {
+        "id": "bitget",
+        "name": "Bitget",
+        "logo_url": "/logos/bitget.png",
+        "enabled": True,
+        "cron_schedule": "0 */3 * * *",
+        "color": "#00C896",
+        "config": {},
+    },
 ]
 
 
