@@ -15,7 +15,7 @@ from app.models.daily_commission import DailyCommission
 from app.models.exchange import Exchange
 from app.models.referred_user import ReferredUser
 from app.models.sync_log import SyncLog
-from app.routes import auth, exchanges, members, stats, sync, users
+from app.routes import auth, exchanges, members, signals, stats, sync, users
 from app.scripts.seed import seed_database
 
 logging.basicConfig(
@@ -30,6 +30,18 @@ async def lifespan(app: FastAPI):
     # Khởi động: kết nối MongoDB, seed dữ liệu, chạy scheduler
     logger.info("[DB] Kết nối MongoDB: %s", settings.mongodb_uri)
     client = motor.motor_asyncio.AsyncIOMotorClient(settings.mongodb_uri)
+    app.state.mongo_client = client
+
+    tr_uri = settings.trading_mongodb_uri.strip()
+    if tr_uri and tr_uri != settings.mongodb_uri:
+        trading_client = motor.motor_asyncio.AsyncIOMotorClient(tr_uri)
+        app.state.trading_mongo_client = trading_client
+        app.state._close_trading_client_only = True
+        logger.info("[DB] Trading signals Mongo URI riêng đã kết nối")
+    else:
+        app.state.trading_mongo_client = client
+        app.state._close_trading_client_only = False
+
     await init_beanie(
         database=client.get_default_database(),
         document_models=[Admin, Exchange, ReferredUser, SyncLog, DailyCommission, CommunityMember],
@@ -46,6 +58,10 @@ async def lifespan(app: FastAPI):
     if scheduler.running:
         scheduler.shutdown()
     logger.info("[Server] Đã tắt scheduler")
+
+    if getattr(app.state, "_close_trading_client_only", False):
+        app.state.trading_mongo_client.close()
+    client.close()
 
 
 app = FastAPI(
@@ -73,6 +89,7 @@ app.include_router(auth.router)
 app.include_router(exchanges.router)
 app.include_router(users.router)
 app.include_router(members.router)
+app.include_router(signals.router)
 app.include_router(stats.router)
 app.include_router(sync.router)
 

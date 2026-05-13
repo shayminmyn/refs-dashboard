@@ -118,6 +118,28 @@ export const api = {
 
   lookupExchangeUser: (exchangeId: string, exchangeUserId: string) =>
     request<ReferredUser>(`/api/members/lookup/${exchangeId}/${exchangeUserId}`),
+
+  // ── Trading signals (MongoDB trading.signals) ──────────────────────────────
+  getSignals: (params: SignalsListParams) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '') as [string, string][]
+    ).toString();
+    return request<SignalsListResponse>(`/api/signals${qs ? `?${qs}` : ''}`);
+  },
+
+  getSignalStats: (params: SignalsFilterParams) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '') as [string, string][]
+    ).toString();
+    return request<SignalStats>(`/api/signals/stats${qs ? `?${qs}` : ''}`);
+  },
+
+  getSignalFilters: (params: SignalsFilterParams) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '') as [string, string][]
+    ).toString();
+    return request<SignalsFiltersResponse>(`/api/signals/filters${qs ? `?${qs}` : ''}`);
+  },
 };
 
 export interface Exchange {
@@ -287,4 +309,76 @@ export interface MemberStats {
   totalVolume: number;
   totalCommission: number;
   links: MemberStatsLink[];
+}
+
+// ── Trading signals ──────────────────────────────────────────────────────────
+
+export interface SignalsFilterParams {
+  from?: string;
+  to?: string;
+  symbol?: string;
+  strategy?: string;
+  timeframe?: string;
+  status?: string;
+}
+
+export interface SignalsListParams extends SignalsFilterParams {
+  page?: string;
+  limit?: string;
+  sortDir?: string;
+}
+
+export interface SignalStats {
+  totalSignals: number;
+  closedTrades: number;
+  wins: number;
+  losses: number;
+  breakeven: number;
+  unsettledR: number;
+  winRate: number | null;
+  totalR: number;
+  avgR: number | null;
+  /** Σ (risk% trên 1R × realized_r) — % equity cộng dồn gần đúng */
+  totalReturnPct: number;
+  /** Σ (risk% trên 1R × rr_ratio) — stack % nếu mỗi lệnh chốt đủ RR khai báo */
+  totalTargetRrPct: number;
+  tradesWithRiskPct: number;
+  avgReturnPct: number | null;
+}
+
+export interface SignalRow {
+  _id: string;
+  orderType: string | null;
+  symbol: string | null;
+  strategy: string | null;
+  timeframe: string | null;
+  status: string | null;
+  signalKey: string | null;
+  comment: string | null;
+  exitReason: string | null;
+  rrRatio: number | null;
+  riskPercent: number | null;
+  realizedR: number | null;
+  closedAt: string | null;
+  signalAt: string | null;
+  entryPrice: number | null;
+  stopLoss: number | null;
+  isClosed: boolean;
+}
+
+export interface SignalsListResponse {
+  data: SignalRow[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface SignalsFiltersResponse {
+  symbols: string[];
+  strategies: string[];
+  timeframes: string[];
+  statuses: string[];
 }
