@@ -52,6 +52,10 @@ class ExnessAdapter(BaseExchangeAdapter):
     def exchange_id(self) -> str:
         return "exness"
 
+    def snapshot_totals_from_daily_rollup(self) -> bool:
+        """Clients API là all-time — không ghi đè bằng SUM DailyCommission (thường chỉ vài ngày sync)."""
+        return False
+
     # ── Authentication ──────────────────────────────────────────────────────────
 
     async def _get_token(self, client: httpx.AsyncClient, force_refresh: bool = False) -> str:

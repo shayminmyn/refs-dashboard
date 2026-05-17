@@ -54,7 +54,9 @@ class BaseExchangeAdapter(ABC):
     async def fetch_referrals(self, commission_days: int = 30) -> List[NormalizedUser]:
         """
         Lấy danh sách người dùng giới thiệu từ API của sàn.
-        commission_days: số ngày hoa hồng để tổng hợp cho user totals.
+        commission_days: cửa sở API cho các bước gộp tạm (BingX/Bitget).
+        Sau sync, snapshot total_volume / total_commission thường được **rollup**
+        từ toàn bộ DailyCommission trong Mongo — xem snapshot_totals_from_daily_rollup().
         Tự xử lý phân trang nội bộ và trả về toàn bộ danh sách.
         """
         ...
@@ -65,3 +67,15 @@ class BaseExchangeAdapter(ABC):
         Các adapter không hỗ trợ endpoint này sẽ trả về danh sách rỗng.
         """
         return []
+
+    def snapshot_totals_from_daily_rollup(self) -> bool:
+        """
+        Sau khi sync DailyCommission, có ghi đè total_volume / total_commission trên
+        ReferredUser bằng SUM toàn bộ bản ghi daily trong Mongo hay không.
+
+        True (mặc định): BingX/Bitget — fetch_referrals chỉ gộp theo commission_days;
+        rollup phản ánh **toàn bộ lịch sử đã lưu** trong DB.
+
+        False: Exness — API clients đã là all-time; rollup có thể làm nhỏ số nếu DC chỉ có vài ngày.
+        """
+        return True

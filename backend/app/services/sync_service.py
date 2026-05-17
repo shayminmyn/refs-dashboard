@@ -78,11 +78,60 @@ async def _sync_commissions(exchange_id: str, adapter, days_back: int) -> int:
     return result.upserted_count + result.modified_count
 
 
+async def _rollup_referred_user_totals_from_daily(exchange_id: str) -> int:
+    """
+    Ghi đè total_volume / total_commission trên referred_users = SUM toàn bộ
+    daily_commissions của user đó trong Mongo (toàn bộ ngày đã sync tích luỹ).
+
+    Chỉ update bản ghi đã tồn tại (exchange_id + user_id); không upsert user mới.
+    """
+    dc_collection = DailyCommission.get_motor_collection()
+    ref_collection = ReferredUser.get_motor_collection()
+
+    pipeline = [
+        {"$match": {"exchange_id": exchange_id}},
+        {
+            "$group": {
+                "_id": "$user_id",
+                "total_volume": {"$sum": "$trading_volume"},
+                "total_commission": {"$sum": "$commission_volume"},
+            }
+        },
+    ]
+    rows = await dc_collection.aggregate(pipeline).to_list(length=None)
+    if not rows:
+        return 0
+
+    ops = [
+        UpdateOne(
+            {"exchange_id": exchange_id, "user_id": row["_id"]},
+            {
+                "$set": {
+                    "total_volume": float(row["total_volume"] or 0),
+                    "total_commission": float(row["total_commission"] or 0),
+                }
+            },
+        )
+        for row in rows
+    ]
+    await ref_collection.bulk_write(ops, ordered=False)
+    logger.info(
+        "[Sync] %s: rollup snapshot từ DailyCommission (%d user có ít nhất 1 ngày)",
+        exchange_id,
+        len(rows),
+    )
+    return len(rows)
+
+
 async def sync_exchange(exchange_id: str) -> int:
     """
     Đồng bộ dữ liệu một sàn:
     - Lần đầu (chưa có DailyCommission): lấy toàn bộ 30 ngày lịch sử.
     - Các lần sau: chỉ cập nhật 3 ngày gần nhất (nhanh hơn, ít request API hơn).
+    - BingX/Bitget: sau khi ghi DailyCommission, rollup total_volume / total_commission
+      trên ReferredUser = SUM toàn bộ bản ghi daily của user trong Mongo (lịch sử tích luỹ).
+    - Exness: giữ snapshot all-time từ API clients — không rollup (tránh ghi đè bằng cửa sổ DC hẹp).
+
     Trả về số người dùng đã upsert.
     """
     adapter = get_adapter(exchange_id)
@@ -132,6 +181,10 @@ async def sync_exchange(exchange_id: str) -> int:
             "[Sync] %s: %d bản ghi hoa hồng (%s)",
             exchange_id, commission_count, sync_mode,
         )
+
+        # ── 2b. Snapshot volume/commission = tổng toàn bộ lịch sử daily trong DB ──
+        if adapter.snapshot_totals_from_daily_rollup():
+            await _rollup_referred_user_totals_from_daily(exchange_id)
 
         # ── 3. Cập nhật log ───────────────────────────────────────────────────
         log.finished_at = datetime.utcnow()
