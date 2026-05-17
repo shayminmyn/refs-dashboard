@@ -62,22 +62,39 @@ async def _overview_all_time() -> Dict[str, Any]:
         }
     ]
     rows = await collection.aggregate(pipeline).to_list(length=None)
+    row_map = {row["_id"]: row for row in rows}
     exchanges = await Exchange.find(Exchange.enabled == True).sort("name").to_list()
-    ex_map = {ex.exchange_id: ex for ex in exchanges}
 
-    by_exchange = [
-        {
-            "exchange_id": row["_id"],
-            "exchange_name": ex_map[row["_id"]].name if row["_id"] in ex_map else row["_id"],
-            "color": ex_map[row["_id"]].color if row["_id"] in ex_map else "#6366f1",
-            "total_deposit": row["total_deposit"],
-            "total_volume": row["total_volume"],
-            "total_commission": row["total_commission"],
-            "total_users": row["total_users"],
-            "active_users": row["active_users"],
-        }
-        for row in rows
-    ]
+    by_exchange = []
+    for ex in exchanges:
+        rid = ex.exchange_id
+        if rid in row_map:
+            row = row_map[rid]
+            by_exchange.append(
+                {
+                    "exchange_id": rid,
+                    "exchange_name": ex.name,
+                    "color": ex.color,
+                    "total_deposit": row["total_deposit"],
+                    "total_volume": row["total_volume"],
+                    "total_commission": row["total_commission"],
+                    "total_users": row["total_users"],
+                    "active_users": row["active_users"],
+                }
+            )
+        else:
+            by_exchange.append(
+                {
+                    "exchange_id": rid,
+                    "exchange_name": ex.name,
+                    "color": ex.color,
+                    "total_deposit": 0,
+                    "total_volume": 0,
+                    "total_commission": 0,
+                    "total_users": 0,
+                    "active_users": 0,
+                }
+            )
 
     totals = {
         "total_deposit": sum(r["total_deposit"] for r in by_exchange),
@@ -266,6 +283,15 @@ async def timeseries(
 
     dc_count = await dc_collection.count_documents(dc_match)
 
+    # Giới hạn số điểm time-series chỉ khi có khoảng ngày — tránh cắt mất phần "gần đây"
+    # khi All time (bounds=None): trả về toàn bộ bucket sau sort.
+    def _series_limit() -> Optional[int]:
+        if bounds is None:
+            return None
+        return 240 if period == "month" else 800
+
+    series_cap = _series_limit()
+
     if dc_count > 0:
         dc_field = dc_metric_map[metric]
 
@@ -278,7 +304,7 @@ async def timeseries(
                 "day": {"$dayOfMonth": "$commission_date"},
             }
 
-        pipeline = [
+        pipeline: List[Dict[str, Any]] = [
             {"$match": dc_match},
             {
                 "$group": {
@@ -288,8 +314,9 @@ async def timeseries(
                 }
             },
             {"$sort": {"_id.year": 1, "_id.month": 1, "_id.day": 1}},
-            {"$limit": 366},
         ]
+        if series_cap is not None:
+            pipeline.append({"$limit": series_cap})
 
         rows = await dc_collection.aggregate(pipeline).to_list(length=None)
 
@@ -318,8 +345,10 @@ async def timeseries(
                 }
             },
             {"$sort": {"_id.year": 1, "_id.month": 1, "_id.day": 1}},
-            {"$limit": 366},
         ]
+        if series_cap is not None:
+            pipeline.append({"$limit": series_cap})
+
         rows = await ref_collection.aggregate(pipeline).to_list(length=None)
 
     result = []
