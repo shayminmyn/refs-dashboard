@@ -13,7 +13,9 @@ from pymongo import ASCENDING, DESCENDING
 
 from app.middleware.auth import CurrentAdmin
 from app.models.community_member import CommunityMember, ExchangeLink
+from app.models.daily_commission import DailyCommission
 from app.models.referred_user import ReferredUser
+from app.routes.stats import _validate_range_params
 
 router = APIRouter(prefix="/api/members", tags=["members"])
 
@@ -251,12 +253,29 @@ async def remove_exchange_link(
 # ── Stats cho 1 member (tổng hợp từ tất cả exchange đã link) ─────────────────
 
 @router.get("/{member_id}/stats")
-async def member_stats(_: CurrentAdmin, member_id: str):
+async def member_stats(
+    _: CurrentAdmin,
+    member_id: str,
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+):
+    """
+    Tổng Deposit / Volume / Commission theo các sàn đã link.
+
+    - **Không có `from`/`to`**: Volume & Commission lấy từ snapshot `referred_users`
+      (tổng thời điểm đồng bộ gần nhất với API sàn — không phải slice theo ngày).
+    - **Có `from` và `to`**: Volume & Commission = **tổng các ngày trong range** từ
+      `daily_commissions` (cùng logic timerange với `/api/stats/{exchange_id}`).
+      Deposit vẫn là snapshot lifetime trên `referred_users` (không có series deposit theo ngày trong DB).
+    """
     m = await _fetch_or_404(member_id)
     if not m.exchange_links:
         return {"total_deposit": 0, "total_volume": 0, "total_commission": 0, "links": []}
 
+    bounds = _validate_range_params(from_date, to_date)
+
     collection = ReferredUser.get_motor_collection()
+    dc_collection = DailyCommission.get_motor_collection()
     link_details = []
     grand = {"total_deposit": 0.0, "total_volume": 0.0, "total_commission": 0.0}
 
@@ -265,13 +284,40 @@ async def member_stats(_: CurrentAdmin, member_id: str):
             {"exchange_id": lnk.exchange_id, "user_id": lnk.exchange_user_id},
             {"total_deposit": 1, "total_volume": 1, "total_commission": 1, "status": 1, "username": 1},
         )
+
+        deposit = float(doc.get("total_deposit", 0) if doc else 0)
+        if bounds is not None:
+            start, end = bounds
+            pipe = [
+                {
+                    "$match": {
+                        "exchange_id": lnk.exchange_id,
+                        "user_id": lnk.exchange_user_id,
+                        "commission_date": {"$gte": start, "$lte": end},
+                    }
+                },
+                {
+                    "$group": {
+                        "_id": None,
+                        "total_volume": {"$sum": "$trading_volume"},
+                        "total_commission": {"$sum": "$commission_volume"},
+                    }
+                },
+            ]
+            agg = await dc_collection.aggregate(pipe).to_list(length=1)
+            volume = float(agg[0]["total_volume"]) if agg else 0.0
+            commission = float(agg[0]["total_commission"]) if agg else 0.0
+        else:
+            volume = float(doc.get("total_volume", 0) if doc else 0)
+            commission = float(doc.get("total_commission", 0) if doc else 0)
+
         detail = {
             "exchange_id": lnk.exchange_id,
             "exchange_user_id": lnk.exchange_user_id,
             "note": lnk.note,
-            "total_deposit": doc.get("total_deposit", 0) if doc else 0,
-            "total_volume": doc.get("total_volume", 0) if doc else 0,
-            "total_commission": doc.get("total_commission", 0) if doc else 0,
+            "total_deposit": deposit,
+            "total_volume": volume,
+            "total_commission": commission,
             "status": doc.get("status", "unknown") if doc else "not_found",
             "exchange_username": doc.get("username", "") if doc else "",
         }

@@ -113,8 +113,12 @@ export const api = {
   removeExchangeLink: (memberId: string, exchangeId: string, exchangeUserId: string) =>
     request<void>(`/api/members/${memberId}/links/${exchangeId}/${exchangeUserId}`, { method: 'DELETE' }),
 
-  getMemberStats: (memberId: string) =>
-    request<MemberStats>(`/api/members/${memberId}/stats`),
+  getMemberStats: (memberId: string, params?: MemberStatsParams) => {
+    const qs = new URLSearchParams(
+      Object.entries(params ?? {}).filter(([, v]) => v !== undefined && v !== '') as [string, string][]
+    ).toString();
+    return request<MemberStats>(`/api/members/${memberId}/stats${qs ? `?${qs}` : ''}`);
+  },
 
   lookupExchangeUser: (exchangeId: string, exchangeUserId: string) =>
     request<ReferredUser>(`/api/members/lookup/${exchangeId}/${exchangeUserId}`),
@@ -291,6 +295,11 @@ export interface ExchangeLinkPayload {
   exchange_id: string;
   exchange_user_id: string;
   note?: string;
+}
+
+export interface MemberStatsParams {
+  from?: string;
+  to?: string;
 }
 
 export interface MemberStatsLink {
